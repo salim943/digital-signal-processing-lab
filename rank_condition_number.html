@@ -1,0 +1,363 @@
+<div id="blogger-vlab-wrapper" style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 100%; margin: 0 auto; overflow-x: hidden;">
+    
+    <!-- External Scripts -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/10.0.0/math.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/numeric/1.2.6/numeric.min.js"></script>
+    
+    <style>
+      .input_area {
+        width: 100%; max-width: 500px; height: 150px; border: 2px solid #22c5ee;
+        padding: 10px; font-family: monospace; border-radius: 8px; margin-bottom: 10px;
+      }
+      .box {
+        width: 60px; height: 40px; text-align: center; border: 1px solid #22c5ee;
+        margin: 2px; border-radius: 4px;
+      }
+      .inputBoxes { display: grid; justify-content: center; gap: 5px; margin: 10px auto; }
+      .matrix-title { font-weight: bold; margin: 10px 0; color: #1e3a8a; }
+      .matrix .operation button {
+        width: 100%; height: 30px; margin: 2px; border: none;
+        background-color: rgb(34, 197, 238); color: white;
+        border-radius: 18px; padding: 2px 8px; text-align: center;
+      }
+      .matrix .operation button:hover {
+        border: 1px solid black; background-color: white; color: rgb(34, 197, 238); cursor: pointer;
+      }
+      .overlay {
+        display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background-color: rgba(0, 0, 0, 0.7); z-index: 9999; justify-content: center; align-items: center;
+      }
+      .resultbox {
+        width: 95px; height: 30px; background-color: black; display: flex;
+        justify-content: center; align-items: center; font-size: 14px;
+        color: white; border-radius: 5px; border: none; margin: 2px;
+      }
+      .overlay-content {
+        background-color: white; padding: 20px; border-radius: 10px;
+        max-width: 95%; max-height: 90vh; overflow-y: auto; text-align: center;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.2); position: relative;
+      }
+      .close-button { position: absolute; top: 10px; right: 10px; cursor: pointer; font-size: 24px; }
+      .hidden { display: none !important; }
+    </style>
+
+    <p style="color: #666; font-size: 14px; text-align: center;">
+      &#9888; <strong>Note:</strong> If the result does not appear, ensure all matrix cells are filled.
+    </p>
+
+    <div class="flex min-h-[60vh]">
+      <div class="px-2 pb-6 flex-1">
+        <div class="matrix flex items-center flex-col">
+          <p class="text-[20px] text-center font-bold text-black my-5">Matrix A</p>
+          <div class="flex justify-around w-full">
+            <textarea id="matrixTextarea" wrap="off" spellcheck="false" class="input_area" required>1 2 3
+4 5 6
+7 8 10</textarea>
+          </div>
+          
+          <div class="inputBoxes hidden" id="matrixGrid"></div>
+          
+          <div class="Buttons mt-2 flex gap-1">
+            <button id="toggleButton" class="bg-[#22C5EE] text-white px-4 py-1 rounded border border-[#22C5EE]">Cell</button>
+            <button id="clearButton" class="bg-[#22C5EE] text-white px-4 py-1 rounded border border-[#22C5EE]">Clear</button>
+            <button id="increaseButton" disabled class="bg-gray-400 text-black px-4 py-1 rounded font-bold">+</button>
+            <button id="decreaseButton" disabled class="bg-gray-400 text-black px-4 py-1 rounded font-bold">-</button>
+          </div>
+
+          <div class="operation flex justify-center w-full max-w-xs mt-4">
+            <div class="part1 flex flex-col w-full">
+              <button id="eigenvalue">Eigen Value</button>
+              <button id="eigenvector">Eigen Vectors</button>
+              <button id="eigenvaluedecomposition">Eigen Value Decomposition</button>
+              <button id="ludecomposition">LU Decomposition</button>
+              <button id="singularvaluedecomposition">Singular Value Decomposition</button>
+              <button id="rankCondition" class="hidden">Rank & Condition Number</button>
+            </div>
+          </div>
+
+          <button class="button bg-green-500 text-white rounded-md px-4 py-2 mt-4" onclick="location.reload();">Reset Simulator</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Overlay -->
+    <div class="overlay" id="overlay">
+      <div class="overlay-content">
+        <span class="close-button" onclick="toggleOverlay()">&times;</span>
+        <h2 class="text-[#17bee7] text-[20px] mb-4" id="overlayheading">Result</h2>
+        <div class="flex flex-col justify-center items-center gap-3">
+          <div class="inputBoxes hidden" id="overlaymatrixGrid"></div>
+          <div class="flex items-center text-xl font-bold">=</div>
+          <div id="result" style="width: 100%; overflow-x: auto;"></div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // Moved toggleOverlay to the top to prevent ReferenceErrors
+      function toggleOverlay() {
+        var overlay = document.getElementById("overlay");
+        overlay.style.display = (overlay.style.display === "none" || overlay.style.display === "") ? "flex" : "none";
+      }
+
+      let matrixSize = 3;
+
+      function createMatrix(size, values = []) {
+        const container = document.getElementById("matrixGrid");
+        container.innerHTML = "";
+        container.style.gridTemplateColumns = `repeat(${size}, 65px)`;
+        for (let i = 0; i < size; i++) {
+          for (let j = 0; j < size; j++) {
+            const input = document.createElement("input");
+            input.className = "box";
+            input.value = values[i] && values[i][j] ? values[i][j] : "";
+            container.appendChild(input);
+          }
+        }
+      }
+
+      function matrixToGrid(matrixString) {
+        const rows = matrixString.trim().split("\n").map(row => row.trim().split(/\s+/));
+        matrixSize = rows.length;
+        createMatrix(matrixSize, rows);
+      }
+
+      function gridToMatrix() {
+        const inputs = document.querySelectorAll("#matrixGrid .box");
+        let str = "";
+        for (let i = 0; i < matrixSize; i++) {
+          let row = [];
+          for (let j = 0; j < matrixSize; j++) row.push(inputs[i * matrixSize + j].value);
+          str += row.join(" ") + "\n";
+        }
+        return str.trim();
+      }
+
+      document.getElementById("toggleButton").addEventListener("click", function () {
+          const tx = document.getElementById("matrixTextarea");
+          const gd = document.getElementById("matrixGrid");
+          const inc = document.getElementById("increaseButton");
+          const dec = document.getElementById("decreaseButton");
+          if (!tx.classList.contains("hidden")) {
+            matrixToGrid(tx.value);
+            tx.classList.add("hidden"); gd.classList.remove("hidden");
+            inc.disabled = false; dec.disabled = false;
+            this.textContent = "Text";
+            inc.style.backgroundColor = "#22C5EE"; dec.style.backgroundColor = "#22C5EE";
+          } else {
+            tx.value = gridToMatrix();
+            tx.classList.remove("hidden"); gd.classList.add("hidden");
+            inc.disabled = true; dec.disabled = true;
+            this.textContent = "Cell";
+            inc.style.backgroundColor = "#808080"; dec.style.backgroundColor = "#808080";
+          }
+      });
+
+      document.getElementById("increaseButton").onclick = () => { if(matrixSize < 10){ matrixSize++; createMatrix(matrixSize); } };
+      document.getElementById("decreaseButton").onclick = () => { if(matrixSize > 1){ matrixSize--; createMatrix(matrixSize); } };
+      document.getElementById("clearButton").onclick = () => { 
+        document.getElementById("matrixTextarea").value = ""; 
+        document.querySelectorAll("#matrixGrid .box").forEach(i => i.value = ""); 
+      };
+
+      createMatrix(matrixSize);
+
+      /* Core Math Logic */
+      function parseMatrixString(s) { return s.trim().split("\n").map(r => r.trim().split(/\s+/).map(Number)); }
+
+      function findEigenvalues(s) {
+        try {
+          const m = parseMatrixString(s);
+          const e = numeric.eig(m);
+          return e.lambda.x.map((r, i) => [parseFloat(r.toFixed(5)), parseFloat((e.lambda.y ? e.lambda.y[i] : 0).toFixed(5))]);
+        } catch (err) { return "Error: " + err.message; }
+      }
+
+      function findEigenvectors(s) {
+        try {
+          const m = parseMatrixString(s);
+          const e = numeric.eig(m);
+          return numeric.transpose(e.E.x).map(v => {
+            const n = Math.sqrt(v.reduce((a, b) => a + b*b, 0));
+            return v.map(x => [parseFloat((x/n).toFixed(4)), 0]);
+          });
+        } catch (err) { return "Error: " + err.message; }
+      }
+
+      function luDecomposition(s) {
+        try {
+          const arr = parseMatrixString(s);
+          const n = arr.length;
+          const A = math.matrix(arr);
+          const L = math.zeros(n, n); const U = math.zeros(n, n); const P = math.identity(n);
+          for (let i = 0; i < n; i++) {
+            let maxR = i;
+            for (let k = i+1; k < n; k++) if(Math.abs(A._data[k][i]) > Math.abs(A._data[maxR][i])) maxR = k;
+            [P._data[i], P._data[maxR]] = [P._data[maxR], P._data[i]];
+            [A._data[i], A._data[maxR]] = [A._data[maxR], A._data[i]];
+            if (i > 0) for(let j=0; j<i; j++) [L._data[i][j], L._data[maxR][j]] = [L._data[maxR][j], L._data[i][j]];
+            for (let j = i; j < n; j++) {
+              let sum = 0; for(let k=0; k<i; k++) sum += L._data[i][k] * U._data[k][j];
+              U._data[i][j] = A._data[i][j] - sum;
+            }
+            for (let j = i; j < n; j++) {
+              if (U._data[i][i] === 0) throw new Error("Zero pivot");
+              let sum = 0; for(let k=0; k<i; k++) sum += L._data[j][k] * U._data[k][i];
+              L._data[j][i] = (A._data[j][i] - sum) / U._data[i][i];
+            }
+          }
+          return { P: P.toArray(), L: L.toArray(), U: U.toArray() };
+        } catch (err) { return "Error: " + err.message; }
+      }
+
+      function svd(s) {
+        try {
+          const m = parseMatrixString(s);
+          const res = numeric.svd(m);
+          return { U: res.U, S: res.S.map(v => [v]), V: res.V, isUOrthogonal: true, isVOrthogonal: true };
+        } catch (err) { return "Error: " + err.message; }
+      }
+
+      /* Result Rendering */
+      function eigenvalueresult(evs) {
+        const res = document.getElementById("result"); res.innerHTML = "";
+        const grid = document.createElement("div"); grid.className = "inputBoxes";
+        grid.style.gridTemplateColumns = "repeat(2, 100px)";
+        evs.forEach((r, i) => {
+          const l = document.createElement("div"); l.className="resultbox"; l.innerText=`Val${i+1}`; grid.appendChild(l);
+          const v = document.createElement("input"); v.className="resultbox"; v.value= r[0] + (r[1] !== 0 ? " + "+r[1]+"j" : ""); grid.appendChild(v);
+        });
+        res.appendChild(grid);
+      }
+
+      function eigenvectorresult(evs) {
+        const res = document.getElementById("result"); res.innerHTML = "";
+        const grid = document.createElement("div"); grid.className = "inputBoxes";
+        grid.style.gridTemplateColumns = `repeat(${evs[0].length + 1}, 100px)`;
+        evs.forEach((v, i) => {
+          const l = document.createElement("div"); l.innerText=`Vec${i+1}`; grid.appendChild(l);
+          v.forEach(val => {
+            const inp = document.createElement("input"); inp.className="resultbox"; inp.value=val[0]; grid.appendChild(inp);
+          });
+        });
+        res.appendChild(grid);
+      }
+
+      function displayEigenResults(evs, evt) {
+        eigenvalueresult(evs);
+        const d = document.createElement("div"); d.style.margin="20px 0"; d.style.borderTop="1px solid #ccc";
+        document.getElementById("result").appendChild(d);
+        eigenvectorresult(evt);
+      }
+
+      function luDecompositionResult(d) {
+        const res = document.getElementById("result"); res.innerHTML = "";
+        const create = (m, t) => {
+          const c = document.createElement("div"); c.innerHTML=`<div class="matrix-title">${t}</div>`;
+          const g = document.createElement("div"); g.className="inputBoxes";
+          g.style.gridTemplateColumns = `repeat(${m[0].length}, 80px)`;
+          m.forEach(r => r.forEach(v => {
+            const i = document.createElement("input"); i.className="resultbox"; i.style.width="75px"; i.value=v.toFixed(2); g.appendChild(i);
+          }));
+          c.appendChild(g); return c;
+        };
+        const cont = document.createElement("div"); cont.className="flex flex-wrap gap-4 justify-center";
+        cont.appendChild(create(d.L, "L Matrix")); cont.appendChild(create(d.U, "U Matrix"));
+        res.appendChild(cont);
+      }
+
+      function svdResult(d) {
+        const res = document.getElementById("result"); res.innerHTML = "";
+        const cont = document.createElement("div"); cont.className="flex flex-wrap gap-4 justify-center";
+        ["U","S","V"].forEach(k => {
+          const c = document.createElement("div"); c.innerHTML=`<div class="matrix-title">${k}</div>`;
+          const g = document.createElement("div"); g.className="inputBoxes";
+          g.style.gridTemplateColumns = `repeat(${d[k][0].length}, 80px)`;
+          d[k].forEach(r => r.forEach(v => {
+            const i = document.createElement("input"); i.className="resultbox"; i.style.width="75px"; i.value=v.toFixed(2); g.appendChild(i);
+          }));
+          c.appendChild(g); cont.appendChild(c);
+        });
+        res.appendChild(cont);
+      }
+
+      function logMatrixValues(tId, gId) {
+        const tx = document.getElementById(tId);
+        if (!tx.classList.contains("hidden")) return tx.value;
+        const ins = document.querySelectorAll(`#${gId} .box`);
+        let m = [];
+        for (let i = 0; i < ins.length; i++) {
+          const r = Math.floor(i / matrixSize);
+          if (!m[r]) m[r] = [];
+          m[r].push(ins[i].value);
+        }
+        return m.map(r => r.join(" ")).join("\n");
+      }
+
+      function insertMatrix(s) {
+        const g = document.getElementById("overlaymatrixGrid"); g.innerHTML = "";
+        const rs = s.trim().split("\n");
+        g.style.gridTemplateColumns = `repeat(${rs[0].trim().split(/\s+/).length}, 65px)`;
+        rs.forEach(r => r.trim().split(/\s+/).forEach(v => {
+          const i = document.createElement("input"); i.className="box"; i.value=v; i.readOnly=true; g.appendChild(i);
+        }));
+        g.classList.remove("hidden");
+      }
+
+      /* Event Listeners */
+      document.getElementById("eigenvalue").onclick = () => {
+        const s = logMatrixValues("matrixTextarea", "matrixGrid");
+        const ev = findEigenvalues(s); toggleOverlay();
+        document.getElementById("overlayheading").innerText = "Eigen Values";
+        if (typeof ev === "string") document.getElementById("result").innerText = ev;
+        else { insertMatrix(s); eigenvalueresult(ev); }
+      };
+
+      document.getElementById("eigenvector").onclick = () => {
+        const s = logMatrixValues("matrixTextarea", "matrixGrid");
+        const ev = findEigenvectors(s); toggleOverlay();
+        document.getElementById("overlayheading").innerText = "Eigen Vectors";
+        if (typeof ev === "string") document.getElementById("result").innerText = ev;
+        else { insertMatrix(s); eigenvectorresult(ev); }
+      };
+
+      document.getElementById("eigenvaluedecomposition").onclick = () => {
+        const s = logMatrixValues("matrixTextarea", "matrixGrid");
+        const ev = findEigenvalues(s); const et = findEigenvectors(s); toggleOverlay();
+        document.getElementById("overlayheading").innerText = "Eigen Value Decomposition";
+        insertMatrix(s); displayEigenResults(ev, et);
+      };
+
+      document.getElementById("ludecomposition").onclick = () => {
+        const s = logMatrixValues("matrixTextarea", "matrixGrid");
+        const res = luDecomposition(s); toggleOverlay();
+        document.getElementById("overlayheading").innerText = "LU Decomposition";
+        if (typeof res === "string") document.getElementById("result").innerText = res;
+        else { insertMatrix(s); luDecompositionResult(res); }
+      };
+
+      document.getElementById("singularvaluedecomposition").onclick = () => {
+        const s = logMatrixValues("matrixTextarea", "matrixGrid");
+        const res = svd(s); toggleOverlay();
+        document.getElementById("overlayheading").innerText = "SVD";
+        if (typeof res === "string") document.getElementById("result").innerText = res;
+        else { insertMatrix(s); svdResult(res); }
+      };
+
+      document.getElementById("rankCondition").onclick = () => {
+        const s = logMatrixValues("matrixTextarea", "matrixGrid");
+        try {
+          const m = parseMatrixString(s); const res = numeric.svd(m); const S = res.S;
+          const rk = S.filter(v => v > 1e-10).length;
+          const cond = S[0] / S[S.length-1];
+          toggleOverlay(); document.getElementById("overlayheading").innerText = "Rank & Condition";
+          insertMatrix(s);
+          document.getElementById("result").innerHTML = `<div style="padding:15px; background:#f0f9ff; border:1px solid #22C5EE; border-radius:8px; color:black;">
+            <p><strong>Rank:</strong> ${rk}</p>
+            <p><strong>Condition Number:</strong> ${cond.toFixed(4)}</p>
+          </div>`;
+        } catch(e) { alert(e.message); }
+      };
+    </script>
+</div>
