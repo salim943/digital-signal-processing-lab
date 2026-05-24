@@ -31,3 +31,40 @@
             </div>
         </div>
     </section>
+<script>
+    // Note: This script simulates the backend logic you provided 
+    // to make the demo functional in a single file.
+
+    function generateQAM() {
+        const bitInput = document.getElementById('bitInput').value;
+        const M = parseInt(document.getElementById('modulationOrder').value);
+        const bits = bitInput.split(',').map(b => parseInt(b.trim()));
+        
+        const bitsPerSymbol = Math.log2(M);
+        const sqrtM = Math.sqrt(M);
+        
+        // Generate Constellation Grid (similar to your Python logic)
+        let constellation = [];
+        for (let i = 0; i < sqrtM; i++) {
+            for (let q = 0; q < sqrtM; q++) {
+                const iVal = (2 * i) - (sqrtM - 1);
+                const qVal = (sqrtM - 1) - (2 * q);
+                constellation.push({i: iVal, q: qVal});
+            }
+        }
+
+        // Plot Constellation
+        const traceConst = {
+            x: constellation.map(c => c.i),
+            y: constellation.map(c => c.q),
+            mode: 'markers',
+            type: 'scatter',
+            marker: { color: 'red', size: 10 }
+        };
+        Plotly.newPlot('constellationPlot', [traceConst], { margin: {t:10, r:10, b:40, l:40} });
+
+    }
+
+    document.getElementById('generateModulatedBtn').addEventListener('click', generateQAM);
+    window.onload = generateQAM;
+</script>
