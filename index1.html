@@ -49,8 +49,11 @@ button:hover {
     <button id="startBtn">Start Talking</button>
     <pre id="messages"></pre>
   </div>
-  <script>
+
+<script>
 const ws = new WebSocket("wss://18c7-103-95-164-224.ngrok-free.app/ws");
+
+ws.binaryType = "arraybuffer"; // ADDED
 
 const startBtn = document.getElementById("startBtn");
 const messages = document.getElementById("messages");
@@ -65,9 +68,11 @@ function log(msg) {
 ws.onopen = () => log("Connected to backend.");
 ws.onerror = () => log("WebSocket error.");
 
+ws.onclose = () => log("Disconnected from backend."); // ADDED
+
 ws.onmessage = async (event) => {
 
-  // Text messages
+  // TEXT MESSAGE
   if (typeof event.data === "string") {
 
     if (event.data.startsWith("AI_TOKEN:")) {
@@ -79,7 +84,7 @@ ws.onmessage = async (event) => {
 
   } else {
 
-    // Audio response from backend
+    // AUDIO MESSAGE
     const audioBlob = new Blob([event.data], {
       type: "audio/wav"
     });
@@ -88,49 +93,14 @@ ws.onmessage = async (event) => {
 
     const audio = new Audio(url);
 
+    // ADDED
+    // Clean memory after playback
+    audio.onended = () => {
+      URL.revokeObjectURL(url);
+    };
+
     await audio.play();
   }
-};
-
-startBtn.onclick = async () => {
-
-  const stream = await navigator.mediaDevices.getUserMedia({
-    audio: true
-  });
-
-  mediaRecorder = new MediaRecorder(stream, {
-    mimeType: "audio/webm;codecs=opus"
-  });
-
-  let chunks = [];
-
-  mediaRecorder.ondataavailable = (e) => {
-    chunks.push(e.data);
-  };
-
-  mediaRecorder.onstop = async () => {
-
-    const blob = new Blob(chunks, {
-      type: "audio/webm;codecs=opus"
-    });
-
-    chunks = [];
-
-    const buffer = await blob.arrayBuffer();
-
-    ws.send(buffer);
-
-    log("\nListening complete. Processing...\n");
-  };
-
-  mediaRecorder.start();
-
-  log("Recording for 4 seconds...");
-
-  setTimeout(() => {
-    mediaRecorder.stop();
-    stream.getTracks().forEach(track => track.stop());
-  }, 4000);
 };
 </script>
 </body>
