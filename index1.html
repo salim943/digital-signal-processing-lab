@@ -3,154 +3,270 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Realtime Voice AI</title>
+  <title>Realtime AI Voice Chatbot</title>
+
   <style>
-body {
-  background: #0f172a;
-  color: white;
-  font-family: Arial, sans-serif;
-  margin: 0;
-}
+    body {
+      background: #0f172a;
+      color: white;
+      font-family: Arial, sans-serif;
+      margin: 0;
+    }
 
-.container {
-  max-width: 800px;
+    .container {
+      max-width: 800px;
+      margin: 40px auto;
+      padding: 24px;
+      text-align: center;
+    }
+
+    /* ROUND GOOGLE-LIKE BUTTON */
+    #startBtn {
+      width: 100px;
+      height: 100px;
+      border-radius: 50%;
+      border: none;
+      background: #06b6d4;
+      color: white;
+      cursor: pointer;
+
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+
+      gap: 6px;
+
+      transition: all 0.3s ease;
+
+      box-shadow: 0 6px 25px rgba(0, 0, 0, 0.35);
+    }
+
+    #startBtn:hover {
+      transform: scale(1.06);
+    }
+
+    #btnIcon {
+      font-size: 34px;
+      transition: all 0.3s ease;
+    }
+
+    #btnText {
+      font-size: 11px;
+      opacity: 0.9;
+    }
+
+    /* RECORDING EFFECT */
+    .recording {
+      background: #ef4444 !important;
+    }
+
+    .recording #btnIcon {
+      animation: pulse 1s infinite;
+    }
+
+    /* SPEAKING EFFECT */
+    .speaking {
+      background: #22c55e !important;
+    }
+
+    .speaking #btnIcon {
+      animation: speakerWave 0.7s infinite alternate;
+    }
+
+    @keyframes pulse {
+      0% {
+        transform: scale(1);
+        opacity: 1;
+      }
+
+      50% {
+        transform: scale(1.35);
+        opacity: 0.6;
+      }
+
+      100% {
+        transform: scale(1);
+        opacity: 1;
+      }
+    }
+
+    @keyframes speakerWave {
+      0% {
+        transform: scale(1);
+      }
+
+      100% {
+        transform: scale(1.25);
+      }
+    }
+
+    #messages {
+      margin-top: 30px;
+      white-space: pre-wrap;
+      background: #111827;
+      padding: 16px;
+      border-radius: 12px;
+      min-height: 200px;
+      text-align: left;
+    }
+    #startBtn {
   margin: 40px auto;
-  padding: 24px;
 }
-
-button {
-  padding: 16px 30px;
-  background: #06b6d4;
-  border: none;
-  color: white;
-  border-radius: 12px;
-  font-size: 18px;
-  cursor: pointer;
-}
-
-button:hover {
-  opacity: 0.9;
-}
-
-#messages {
-  margin-top: 30px;
-  white-space: pre-wrap;
-  background: #111827;
-  padding: 16px;
-  border-radius: 12px;
-  min-height: 200px;
-}
-</style>
+  </style>
 </head>
+
 <body>
+
   <div class="container">
-    <h1>🎙️ Realtime Voice AI</h1>
-    <p>Speak for 4 seconds and get an AI voice response.</p>
-    <button id="startBtn">Start Talking</button>
+
+    <h1>🎙️ Realtime AI Voice Chatbot</h1>
+
+    <p>Tap the mic and speak</p>
+
+    <button id="startBtn">
+      <span id="btnIcon">🎤</span>
+      <span id="btnText">Talk</span>
+    </button>
+
     <pre id="messages"></pre>
+
   </div>
-<script>
-const ws = new WebSocket("wss://18c7-103-95-164-224.ngrok-free.app/ws");
 
-ws.binaryType = "arraybuffer";
+  <script>
 
-const startBtn = document.getElementById("startBtn");
-const messages = document.getElementById("messages");
+    const ws = new WebSocket("wss://c552-103-95-164-224.ngrok-free.app/ws");
 
-let mediaRecorder;
+    ws.binaryType = "arraybuffer";
+
+    const startBtn = document.getElementById("startBtn");
+    const messages = document.getElementById("messages");
+
+    const btnIcon = document.getElementById("btnIcon");
+    const btnText = document.getElementById("btnText");
+
+    let mediaRecorder;
+
+messages.textContent = "Log...\n";
 
 function log(msg) {
   messages.textContent += msg + "\n";
   messages.scrollTop = messages.scrollHeight;
 }
+    ws.onopen = () => log("Connected to backend.");
 
-ws.onopen = () => log("Connected to backend.");
+    ws.onerror = () => log("WebSocket error.");
 
-ws.onerror = () => log("WebSocket error.");
+    ws.onclose = () => log("Disconnected from backend.");
 
-ws.onclose = () => log("Disconnected from backend.");
+    ws.onmessage = async (event) => {
 
-ws.onmessage = async (event) => {
+      // TEXT MESSAGE
+      if (typeof event.data === "string") {
 
-  // TEXT MESSAGE
-  if (typeof event.data === "string") {
+        if (event.data.startsWith("AI_TOKEN:")) {
 
-    if (event.data.startsWith("AI_TOKEN:")) {
+          const token = event.data.replace("AI_TOKEN:", "");
 
-      const token = event.data.replace("AI_TOKEN:", "");
+          messages.textContent += token;
 
-      messages.textContent += token;
+        } else {
 
-    } else {
+          log(event.data);
 
-      log(event.data);
-    }
+        }
 
-  } else {
+      } else {
 
-    // AUDIO MESSAGE
-    const audioBlob = new Blob([event.data], {
-      type: "audio/wav"
-    });
+        // AUDIO MESSAGE
+        const audioBlob = new Blob([event.data], {
+          type: "audio/wav"
+        });
 
-    const url = URL.createObjectURL(audioBlob);
+        const url = URL.createObjectURL(audioBlob);
 
-    const audio = new Audio(url);
+        const audio = new Audio(url);
 
-    audio.onended = () => {
-      URL.revokeObjectURL(url);
+        // SPEAKING UI
+        startBtn.classList.add("speaking");
+
+        btnIcon.textContent = "🔊";
+        btnText.textContent = "Speaking";
+
+        audio.onended = () => {
+
+          URL.revokeObjectURL(url);
+
+          startBtn.classList.remove("speaking");
+
+          btnIcon.textContent = "🎤";
+          btnText.textContent = "Talk";
+
+        };
+
+        await audio.play();
+      }
     };
 
-    await audio.play();
-  }
-};
+    // RECORD USER AUDIO
+    startBtn.onclick = async () => {
 
-// ADDED BACK
-// RECORD USER AUDIO
-startBtn.onclick = async () => {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: true
+      });
 
-  const stream = await navigator.mediaDevices.getUserMedia({
-    audio: true
-  });
+      mediaRecorder = new MediaRecorder(stream, {
+        mimeType: "audio/webm;codecs=opus"
+      });
 
-  mediaRecorder = new MediaRecorder(stream, {
-    mimeType: "audio/webm;codecs=opus"
-  });
+      let chunks = [];
 
-  let chunks = [];
+      mediaRecorder.ondataavailable = (e) => {
+        chunks.push(e.data);
+      };
 
-  mediaRecorder.ondataavailable = (e) => {
-    chunks.push(e.data);
-  };
+      mediaRecorder.onstop = async () => {
 
-  mediaRecorder.onstop = async () => {
+        const blob = new Blob(chunks, {
+          type: "audio/webm;codecs=opus"
+        });
 
-    const blob = new Blob(chunks, {
-      type: "audio/webm;codecs=opus"
-    });
+        chunks = [];
 
-    chunks = [];
+        const buffer = await blob.arrayBuffer();
 
-    const buffer = await blob.arrayBuffer();
+        // SEND AUDIO TO BACKEND
+        ws.send(buffer);
 
-    // SEND AUDIO TO BACKEND
-    ws.send(buffer);
+        log("Processing...");
 
-    log("Processing...");
-  };
+        btnIcon.textContent = "⏳";
+        btnText.textContent = "Processing";
 
-  mediaRecorder.start();
+      };
 
-  log("Recording for 4 seconds...");
+      mediaRecorder.start();
 
-  setTimeout(() => {
+      // RECORDING UI
+      startBtn.classList.add("recording");
 
-    mediaRecorder.stop();
+      btnIcon.textContent = "🎙️";
+      btnText.textContent = "Listening";
 
-    stream.getTracks().forEach(track => track.stop());
+      log("Recording for 4 seconds...");
 
-  }, 4000);
-};
-</script>
+      setTimeout(() => {
+
+        startBtn.classList.remove("recording");
+
+        mediaRecorder.stop();
+
+        stream.getTracks().forEach(track => track.stop());
+
+      }, 4000);
+    };
+
+  </script>
+
 </body>
 </html>
